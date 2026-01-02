@@ -11,7 +11,6 @@ let intervalHandle: number | null = null;
 
 function clearTimer() {
   if (intervalHandle != null) {
-    clearInterval(intervalHandle);
     intervalHandle = null;
   }
 }
@@ -79,7 +78,7 @@ export const actions = {
     commit("SET_ACTIVE_RACE", race);
 
     return new Promise<void>((resolve) => {
-      intervalHandle = window.setInterval(() => {
+      intervalHandle = setInterval(() => {
         const now = Date.now();
 
         const nextPositions: Record<number, number> = { ...race.positions };
