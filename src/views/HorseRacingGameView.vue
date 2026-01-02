@@ -25,9 +25,6 @@
     <section class="card trackCard">
       <h2>Race Track</h2>
       <RaceTrack />
-      <div class="liveBox">
-        <LiveResultsPanel />
-      </div>
     </section>
   </div>
 </template>
@@ -38,7 +35,6 @@ import HorsePoolTable from "@/components/HorsePoolTable.vue";
 import ScheduleTable from "@/components/ScheduleTable.vue";
 import ResultsPanel from "@/components/ResultsPanel.vue";
 import RaceTrack from "@/components/RaceTrack.vue";
-import LiveResultsPanel from "@/components/LiveResultsPanel.vue";
 
 </script>
 
