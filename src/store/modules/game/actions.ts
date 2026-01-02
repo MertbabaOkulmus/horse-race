@@ -1,84 +1,74 @@
 import type { ActionContext } from "vuex";
 import type { RootState } from "@/store";
 import type { GameState } from "./state";
-import type { ActiveRace, Round, RoundDistance, RoundResult } from "./types";
+import type { ActiveRace, RoundResult } from "./types";
+
 import { generateHorsePool } from "@/services/horseFactory";
-import { computeProgressDelta, TICK_MS } from "@/services/raceEngine";
+import { computeSpeed, TICK_MS } from "@/services/raceEngine";
+import { buildSchedule } from "./helpers";
 
 let intervalHandle: number | null = null;
 
-const ROUND_DISTANCES: RoundDistance[] = [1200, 1400, 1600, 1800, 2000, 2200];
-
-function pickRandomUnique<T>(arr: T[], count: number): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, count);
-}
-
-function buildSchedule(allHorseIds: number[]): Round[] {
-  return ROUND_DISTANCES.map((distance, i) => {
-    const picked = pickRandomUnique(allHorseIds, 10);
-    return {
-      index: i as 0 | 1 | 2 | 3 | 4 | 5,
-      distance,
-      horseIds: picked,
-    };
-  });
-}
-
 function clearTimer() {
-  if (intervalHandle !== null) {
+  if (intervalHandle != null) {
     clearInterval(intervalHandle);
     intervalHandle = null;
   }
+}
+
+function distanceFactor(distance: number) {
+  return 1200 / distance;
 }
 
 export const actions = {
   generate({ commit }: ActionContext<GameState, RootState>) {
     clearTimer();
 
-    const horses = generateHorsePool();
-    const schedule = buildSchedule(horses.map((h) => h.id));
+    const horses = generateHorsePool(); // 20
+    const schedule = buildSchedule(horses.map((h) => h.id)); // 6 rounds
 
     commit("SET_HORSES", horses);
     commit("SET_SCHEDULE", schedule);
     commit("SET_CURRENT_ROUND_INDEX", 0);
     commit("SET_ACTIVE_RACE", null);
-    commit("SET_STATUS", "generated");
     commit("RESET_RESULTS_ONLY");
+    commit("SET_STATUS", "generated");
   },
 
-  async start({ state, commit, dispatch, getters }: ActionContext<GameState, RootState>) {
-    if (getters.isRunning) return;
-    if (state.schedule.length !== 6 || state.horses.length !== 20) return;
+  async start({ state, commit, dispatch }: ActionContext<GameState, RootState>) {
+    if (state.raceStatus === "running") return;
+    if (state.horses.length !== 20 || state.schedule.length !== 6) return;
 
     commit("SET_STATUS", "running");
 
-    for (let idx = state.currentRoundIndex; idx < 6; idx++) {
-      commit("SET_CURRENT_ROUND_INDEX", idx);
-      await dispatch("runRound", idx);
+    for (let i = state.currentRoundIndex; i < 6; i++) {
+      commit("SET_CURRENT_ROUND_INDEX", i);
+      await dispatch("runRound", i);
     }
 
     commit("SET_STATUS", "finished");
     commit("SET_ACTIVE_RACE", null);
   },
 
-  runRound({ state, commit, getters }: ActionContext<GameState, RootState>, roundIndex: number) {
+  runRound(
+    { state, commit, getters }: ActionContext<GameState, RootState>,
+    roundIndex: number
+  ) {
     clearTimer();
 
     const round = state.schedule[roundIndex];
     if (!round) return Promise.resolve();
 
-    const horsesById: Map<number, any> = getters.horsesById;
+    const horsesById = getters.horsesById as Map<number, any>;
 
     const positions: Record<number, number> = {};
     const finished: Record<number, number> = {};
-    for (const id of round.horseIds) positions[id] = 0;
 
-    const activeRace: ActiveRace = {
+    for (const id of round.horseIds) {
+      positions[id] = 0;
+    }
+
+    const race: ActiveRace = {
       roundIndex: round.index,
       distance: round.distance,
       horseIds: [...round.horseIds],
@@ -87,51 +77,52 @@ export const actions = {
       finished,
     };
 
-    commit("SET_ACTIVE_RACE", activeRace);
+    commit("SET_ACTIVE_RACE", race);
 
     return new Promise<void>((resolve) => {
       intervalHandle = window.setInterval(() => {
         const now = Date.now();
-        const nextPositions: Record<number, number> = { ...activeRace.positions };
-        const nextFinished: Record<number, number> = { ...activeRace.finished };
 
-        for (const horseId of activeRace.horseIds) {
+        const nextPositions: Record<number, number> = { ...race.positions };
+        const nextFinished: Record<number, number> = { ...race.finished };
+
+        const df = distanceFactor(race.distance); 
+        for (const horseId of race.horseIds) {
           if (nextFinished[horseId] != null) continue;
 
           const horse = horsesById.get(horseId);
           if (!horse) continue;
 
-          const delta = computeProgressDelta({ horse, distance: activeRace.distance });
-          nextPositions[horseId] = Math.min(100, (nextPositions[horseId] ?? 0) + delta);
+          const speed = computeSpeed(horse.condition); 
+          const inc = speed * df;                     
+          nextPositions[horseId] = Math.min(100, (nextPositions[horseId] ?? 0) + inc);
 
           if (nextPositions[horseId] >= 100) {
-            nextFinished[horseId] = now - activeRace.startTs; // ms
+            nextFinished[horseId] = now - race.startTs; 
           }
         }
 
-        activeRace.positions = nextPositions;
-        activeRace.finished = nextFinished;
+        race.positions = nextPositions;
+        race.finished = nextFinished;
 
-        commit("UPDATE_POSITIONS", { positions: nextPositions });
-        commit("MARK_FINISHED", { finished: nextFinished });
+        commit("UPDATE_ACTIVE_RACE", { positions: nextPositions, finished: nextFinished });
 
-        const allFinished = activeRace.horseIds.every((id) => nextFinished[id] != null);
+        const allFinished = race.horseIds.every((id) => nextFinished[id] != null);
         if (allFinished) {
           clearTimer();
 
-          const placements = [...activeRace.horseIds]
+          const placements = [...race.horseIds]
             .map((id) => ({ horseId: id, timeMs: nextFinished[id]! }))
             .sort((a, b) => a.timeMs - b.timeMs);
 
           const result: RoundResult = {
-            roundIndex: activeRace.roundIndex,
-            distance: activeRace.distance,
+            roundIndex: race.roundIndex,
+            distance: race.distance,
             placements,
           };
 
           commit("PUSH_RESULT", result);
           commit("SET_ACTIVE_RACE", null);
-
           resolve();
         }
       }, TICK_MS);

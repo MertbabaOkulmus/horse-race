@@ -15,7 +15,7 @@ export function generateHorsePool(): Horse[] {
   return Array.from({ length: 20 }).map((_, idx) => ({
     id: idx + 1,
     name: `Horse ${idx + 1}`,
-    color: COLOR_PALETTE_20[idx], 
+    color: COLOR_PALETTE_20[idx],
     condition: randInt(1, 100),
   }));
 }

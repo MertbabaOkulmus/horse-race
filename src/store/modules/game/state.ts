@@ -3,8 +3,9 @@ import type { ActiveRace, Horse, RaceStatus, Round, RoundResult } from "./types"
 export type GameState = {
   horses: Horse[];
   schedule: Round[];
-  currentRoundIndex: number; // 0..5
+  currentRoundIndex: number;
   raceStatus: RaceStatus;
+
   activeRace: ActiveRace | null;
   results: RoundResult[];
 };
