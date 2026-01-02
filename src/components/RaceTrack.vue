@@ -56,7 +56,6 @@ function progressValue(horseId: number) {
 }
 
 function progressLeft(horseId: number) {
-  // marker genişliğini de düşünerek sonlara taşmasın diye küçük -2%
   const p = progressValue(horseId);
   return `calc(${p}% - 6px)`;
 }

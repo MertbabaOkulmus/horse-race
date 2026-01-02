@@ -19,7 +19,7 @@ import { useStore } from "vuex";
 const store = useStore();
 
 const status = computed(() => store.state.game.raceStatus);
-const canStart = computed(() => store.getters["game/isReady"] || store.state.game.raceStatus === "finished");
+const canStart = computed(() => store.state.game.raceStatus === "generated");
 
 const onGenerate = () => store.dispatch("game/generate");
 const onStart = () => store.dispatch("game/start");

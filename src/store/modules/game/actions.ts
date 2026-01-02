@@ -35,20 +35,19 @@ export const actions = {
     commit("SET_STATUS", "generated");
   },
 
-  async start({ state, commit, dispatch }: ActionContext<GameState, RootState>) {
-    if (state.raceStatus === "running") return;
-    if (state.horses.length !== 20 || state.schedule.length !== 6) return;
+ async start({ state, commit, dispatch }: ActionContext<GameState, RootState>) {
+  if (state.raceStatus !== "generated") return;
 
-    commit("SET_STATUS", "running");
+  commit("SET_STATUS", "running");
 
-    for (let i = state.currentRoundIndex; i < 6; i++) {
-      commit("SET_CURRENT_ROUND_INDEX", i);
-      await dispatch("runRound", i);
-    }
+  for (let i = 0; i < state.schedule.length; i++) {
+    commit("SET_CURRENT_ROUND_INDEX", i);
+    await dispatch("runRound", i);
+  }
 
-    commit("SET_STATUS", "finished");
-    commit("SET_ACTIVE_RACE", null);
-  },
+  commit("SET_STATUS", "finished");
+  commit("SET_ACTIVE_RACE", null);
+},
 
   runRound(
     { state, commit, getters }: ActionContext<GameState, RootState>,
